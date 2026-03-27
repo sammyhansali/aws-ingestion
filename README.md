@@ -1,5 +1,8 @@
 # AWS Ingestion
+
 A series of mini-projects to build and analyze tradeoffs of different data ingestion techniques in AWS.
+
+***Tags:** SQL, Python, AWS, Terraform, Ingestion, Batch, Full, Incremental, CDC, Streaming*
 
 ---
 
@@ -35,10 +38,11 @@ answer
 **Goal:** Build two ingestion pipelines using AWS Glue (batch and incremental) to ingest data from a local OLTP Postgres database into partitioned parquet files in S3. Measure how each pipeline handles three main dataset changes (inserts, updates, and deletes) with respect to cost, speed, and correctness. Understand the detailed tradeoffs between these two approaches for keeping a data lake in sync with a database.
 
 - **Source:** Local OLTP Postgres database
+- **Ingestion:** Glue
+- **Transformation:** Glue
 - **Target:** S3 (parquet, partitioned)
 
-#### Architecture
-... (diagram here) ...
+![](./images/1-batch-ingestion-full-vs-incremental.drawio.png)
 
 #### Analysis
 There are three main factors that I kept in mind while performing the analysis.
@@ -76,6 +80,9 @@ The way I practiced this was as simple as (1) building out the project normally,
 There are two main use-cases for AI (I'm using "AI" here as a shorthand for things like large language models, agents, and so on) in the realm of software: learning and coding. I believe that it is better for my long-term development as an engineer, systems thinker, and problem solver to avoid (as much as possible) just using AI to generate all of the code. Not only have studies shown that [AI coding assistance can significantly decrease mastery at the benefit of slightly faster speed](https://www.anthropic.com/research/AI-assistance-coding-skills), but it also takes away a lot of the joy and craft of figuring things out for yourself.
 
 That being said, I will still occasionally code generate on personal projects meant for learning. But usually only for boring / routine tasks I can do in my sleep. My main use of AI is still learning things quicker, for which I find it indispensable. [AI was also helpful to come up with some of the project ideas](https://chatgpt.com/share/69c590de-e868-8328-b018-b9dafb5f5912) I executed in this repository, as well as ideas on questions to ask myself, experiments to perform, overall structure, and so on.
+
+### Diagrams
+The architecture diagrams in this article were all created with draw.io.
 
 --- 
 
