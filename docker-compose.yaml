@@ -1,6 +1,10 @@
 services:
   postgres:
     image: postgres:latest
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
