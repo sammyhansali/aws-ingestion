@@ -1,10 +1,15 @@
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:17
     ports:
       - "5432:5432"
     volumes:
       - ./data/create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+      - postgres_data:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin
+
+volumes:
+  postgres_data:
+    driver: local

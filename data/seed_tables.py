@@ -13,10 +13,10 @@ DB_CONFIG = {
 }
 
 COUNTS = {
-    "customers": 10_000,
-    "products": 1_000,
-    "orders": 50_000,
-    "order_items": 150_000,
+    "customers": 5_000,
+    "products": 500,
+    "orders": 25_000,
+    "order_items": 75_000,
 }
 
 
@@ -66,11 +66,44 @@ def seed_products(cur):
 
 
 def seed_orders(cur):
-    pass
+    sql = """
+    INSERT INTO orders (order_id, customer_id, order_date, order_status, total_amount)
+    VALUES (%s, %s, %s, %s, %s)
+    """
+    to_insert = []
+
+    for i in range(COUNTS["orders"]):
+        order_id = i + 1
+        customer_id = fake.random_int(min=1, max=COUNTS["customers"])
+        order_date = fake.date_time_between(start_date="-1y", end_date="now")
+        order_status = fake.random_element(
+            elements=["pending", "shipped", "delivered", "cancelled"]
+        )
+        total_amount = fake.ecommerce_price(as_int=False)
+
+        to_insert.append(
+            (order_id, customer_id, order_date, order_status, total_amount)
+        )
+
+    cur.executemany(sql, to_insert)
 
 
 def seed_order_items(cur):
-    pass
+    sql = """
+   INSERT INTO order_items (order_item_id, order_id, product_id, quantity, unit_price)
+   VALUES (%s, %s, %s, %s, %s)
+   """
+    to_insert = []
+    for i in range(COUNTS["order_items"]):
+        order_item_id = i + 1
+        order_id = fake.random_int(min=1, max=COUNTS["orders"])
+        product_id = fake.random_int(min=1, max=COUNTS["products"])
+        quantity = fake.random_int(min=1, max=5)
+        unit_price = fake.ecommerce_price(as_int=False)
+
+        to_insert.append((order_item_id, order_id, product_id, quantity, unit_price))
+
+    cur.executemany(sql, to_insert)
 
 
 if __name__ == "__main__":
@@ -87,9 +120,13 @@ if __name__ == "__main__":
             print(f"Skipping {table}: already has data")
         else:
             print(f"Seeding {table}...")
-            fn(cur)
-            conn.commit()
-            print(f"Done seeding {table}")
+            try:
+                fn(cur)
+                conn.commit()
+                print(f"Done seeding {table}")
+            except Exception as e:
+                print(f"Error seeding {table}: {e}")
+                conn.rollback()
 
     cur.close()
     conn.close()
