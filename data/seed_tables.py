@@ -1,3 +1,5 @@
+import argparse
+
 import psycopg2
 from faker import Faker
 from faker_commerce import Provider as CommerceProvider
@@ -5,11 +7,20 @@ from faker_commerce import Provider as CommerceProvider
 fake = Faker()
 fake.add_provider(CommerceProvider)
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "user": "admin",
-    "password": "admin",
+DB_CONFIGS = {
+    "local": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "admin",
+        "password": "admin",
+    },
+    "rds": {
+        "host": "database-1.civiomsc0jqa.us-east-1.rds.amazonaws.com",
+        "port": 5432,
+        "dbname": "postgres",
+        "user": "dempuser",
+        "password": "password",
+    },
 }
 
 COUNTS = {
@@ -107,7 +118,11 @@ def seed_order_items(cur):
 
 
 if __name__ == "__main__":
-    conn = psycopg2.connect(**DB_CONFIG)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["local", "rds"], default="local")
+    args = parser.parse_args()
+
+    conn = psycopg2.connect(**DB_CONFIGS[args.env])
     cur = conn.cursor()
 
     for table, fn in [
