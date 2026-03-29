@@ -35,7 +35,7 @@ answer
 # Results
 
 ### 1: Batch Ingestion (Full vs Incremental)
-**Goal:** Build two ingestion pipelines using AWS Glue (batch and incremental) to ingest data from a local OLTP Postgres database into partitioned parquet files in S3. Measure how each pipeline handles three main dataset changes (inserts, updates, and deletes) with respect to cost, speed, and correctness. Understand the detailed tradeoffs between these two approaches for keeping a data lake in sync with a database.
+**Goal:** Build two ingestion pipelines using AWS Glue (batch and incremental) to ingest data from a local OLTP Postgres database into partitioned parquet files in S3. Measure how each pipeline handles three main dataset changes (inserts, updates, and deletes) with respect to cost, performance, and correctness. Understand the detailed tradeoffs between these two approaches for keeping a data lake in sync with a database.
 
 - **Source:** Local OLTP Postgres database
 - **Ingestion:** Glue

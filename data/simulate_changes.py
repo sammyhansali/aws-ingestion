@@ -1,3 +1,4 @@
+import argparse
 import random
 
 import psycopg2
@@ -7,11 +8,20 @@ from faker_commerce import Provider as CommerceProvider
 fake = Faker()
 fake.add_provider(CommerceProvider)
 
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "user": "admin",
-    "password": "admin",
+DB_CONFIGS = {
+    "local": {
+        "host": "localhost",
+        "port": 5432,
+        "user": "admin",
+        "password": "admin",
+    },
+    "rds": {
+        "host": "database-1.civiomsc0jqa.us-east-1.rds.amazonaws.com",
+        "port": 5432,
+        "dbname": "postgres",
+        "user": "REDACTED_USER",
+        "password": "REDACTED",
+    },
 }
 
 CHANGES_PER_RUN = 100
@@ -129,7 +139,11 @@ def simulate_order_items(cur, order_ids: list, product_ids: list, order_item_ids
 
 
 if __name__ == "__main__":
-    conn = psycopg2.connect(**DB_CONFIG)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--env", choices=["local", "rds"], default="local")
+    args = parser.parse_args()
+
+    conn = psycopg2.connect(**DB_CONFIGS[args.env])
     cur = conn.cursor()
 
     customer_ids = get_ids(cur, "customers", "customer_id")
@@ -148,7 +162,11 @@ if __name__ == "__main__":
         (
             "order_items",
             simulate_order_items,
-            {"order_ids": order_ids, "product_ids": product_ids, "order_item_ids": order_item_ids},
+            {
+                "order_ids": order_ids,
+                "product_ids": product_ids,
+                "order_item_ids": order_item_ids,
+            },
         ),
     ]:
         print(f"Simulating changes for {label}...")
