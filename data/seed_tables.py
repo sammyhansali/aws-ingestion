@@ -24,10 +24,15 @@ DB_CONFIGS = {
 }
 
 COUNTS = {
-    "customers": 5_000,
-    "products": 500,
-    "orders": 25_000,
-    "order_items": 75_000,
+    "customers": [1_000, 5_000, 10_000],
+    "products": [100, 500, 1_000],
+    "orders": [5_000, 25_000, 50_000],
+    "order_items": [15_000, 75_000, 150_000],
+}
+IDXS = {
+    "small": 0,
+    "medium": 1,
+    "large": 2,
 }
 
 
@@ -36,14 +41,14 @@ def already_seeded(cur, table: str) -> bool:
     return cur.fetchone()[0] > 0
 
 
-def seed_customers(cur):
+def seed_customers(cur, idx):
     sql = """
     insert into CUSTOMERS (customer_id, name, email, city, status)
     VALUES (%s, %s, %s, %s, %s)
     """
     to_insert = []
 
-    for i in range(COUNTS["customers"]):
+    for i in range(COUNTS["customers"][idx]):
         customer_id = i + 1
         name = fake.unique.name()
         email = fake.unique.email()
@@ -57,14 +62,14 @@ def seed_customers(cur):
     cur.executemany(sql, to_insert)
 
 
-def seed_products(cur):
+def seed_products(cur, idx):
     sql = """
     INSERT INTO products (product_id, product_name, description, price, is_active)
     VALUES (%s, %s, %s, %s, %s)
     """
     to_insert = []
 
-    for i in range(COUNTS["products"]):
+    for i in range(COUNTS["products"][idx]):
         product_id = i + 1
         product_name = fake.unique.ecommerce_name()
         description = f"{fake.ecommerce_material()} {fake.ecommerce_category()} product. {fake.sentence()}"
@@ -76,16 +81,16 @@ def seed_products(cur):
     cur.executemany(sql, to_insert)
 
 
-def seed_orders(cur):
+def seed_orders(cur, idx):
     sql = """
     INSERT INTO orders (order_id, customer_id, order_date, order_status, total_amount)
     VALUES (%s, %s, %s, %s, %s)
     """
     to_insert = []
 
-    for i in range(COUNTS["orders"]):
+    for i in range(COUNTS["orders"][idx]):
         order_id = i + 1
-        customer_id = fake.random_int(min=1, max=COUNTS["customers"])
+        customer_id = fake.random_int(min=1, max=COUNTS["customers"][idx])
         order_date = fake.date_time_between(start_date="-1y", end_date="now")
         order_status = fake.random_element(
             elements=["pending", "shipped", "delivered", "cancelled"]
@@ -99,16 +104,16 @@ def seed_orders(cur):
     cur.executemany(sql, to_insert)
 
 
-def seed_order_items(cur):
+def seed_order_items(cur, idx):
     sql = """
    INSERT INTO order_items (order_item_id, order_id, product_id, quantity, unit_price)
    VALUES (%s, %s, %s, %s, %s)
    """
     to_insert = []
-    for i in range(COUNTS["order_items"]):
+    for i in range(COUNTS["order_items"][idx]):
         order_item_id = i + 1
-        order_id = fake.random_int(min=1, max=COUNTS["orders"])
-        product_id = fake.random_int(min=1, max=COUNTS["products"])
+        order_id = fake.random_int(min=1, max=COUNTS["orders"][idx])
+        product_id = fake.random_int(min=1, max=COUNTS["products"][idx])
         quantity = fake.random_int(min=1, max=5)
         unit_price = fake.ecommerce_price(as_int=False)
 
@@ -120,7 +125,10 @@ def seed_order_items(cur):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", choices=["local", "rds"], default="local")
+    parser.add_argument("--size", choices=["small", "medium", "large"], default="small")
     args = parser.parse_args()
+
+    idx = IDXS[args.size]
 
     conn = psycopg2.connect(**DB_CONFIGS[args.env])
     cur = conn.cursor()
@@ -132,16 +140,17 @@ if __name__ == "__main__":
         ("order_items", seed_order_items),
     ]:
         if already_seeded(cur, table):
-            print(f"Skipping {table}: already has data")
-        else:
-            print(f"Seeding {table}...")
-            try:
-                fn(cur)
-                conn.commit()
-                print(f"Done seeding {table}")
-            except Exception as e:
-                print(f"Error seeding {table}: {e}")
-                conn.rollback()
+            print(f"Truncating {table}: already has data")
+            cur.execute(f"TRUNCATE TABLE {table} CASCADE;")
+
+        print(f"Seeding {table}...")
+        try:
+            fn(cur, idx)
+            conn.commit()
+            print(f"Done seeding {table}")
+        except Exception as e:
+            print(f"Error seeding {table}: {e}")
+            conn.rollback()
 
     cur.close()
     conn.close()
