@@ -6,6 +6,7 @@ from time import perf_counter
 
 import boto3
 import pandas as pd
+from botocore.exceptions import ClientError
 
 S3_BUCKET = "sh26-aws-ingestion"
 METRICS_KEY = "1-batch-ingestion-full-vs-incremental/metrics/metrics.csv"
@@ -69,15 +70,24 @@ def log(
         "target_row_count": target_row_count,
     }
 
-    # load existing CSV if it exists, otherwise start fresh
     try:
-        obj = s3.get_object(Bucket=S3_BUCKET, Key=METRICS_KEY)
-        existing = pd.read_csv(io.BytesIO(obj["Body"].read()))
-    except s3.exceptions.NoSuchKey:
-        existing = pd.DataFrame(columns=COLUMNS)
+        # load existing CSV if it exists, otherwise start fresh
+        try:
+            obj = s3.get_object(Bucket=S3_BUCKET, Key=METRICS_KEY)
+            existing = pd.read_csv(io.BytesIO(obj["Body"].read()))
+            print(f"Loaded existing metrics CSV ({len(existing)} rows)")
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                print("No existing metrics CSV found, starting fresh")
+                existing = pd.DataFrame(columns=COLUMNS)
+            else:
+                raise
 
-    updated = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
+        updated = pd.concat([existing, pd.DataFrame([row])], ignore_index=True)
 
-    buf = io.BytesIO()
-    updated.to_csv(buf, index=False)
-    s3.put_object(Bucket=S3_BUCKET, Key=METRICS_KEY, Body=buf.getvalue())
+        buf = io.BytesIO()
+        updated.to_csv(buf, index=False)
+        s3.put_object(Bucket=S3_BUCKET, Key=METRICS_KEY, Body=buf.getvalue())
+        print(f"Metrics logged for {table}")
+    except Exception as e:
+        print(f"ERROR in metrics.log: {e}")
