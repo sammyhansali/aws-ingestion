@@ -5,6 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "boto3>=1.42.83",
+    "botocore[crt]>=1.42.83",
     "faker>=40.11.1",
     "faker-commerce>=1.0.4",
     "psycopg2>=2.9.11",

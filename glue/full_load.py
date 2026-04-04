@@ -3,10 +3,9 @@ import io
 from datetime import datetime, timezone
 
 import boto3
+import metrics
 import pandas as pd
 import psycopg2
-
-import metrics
 
 DB_CONFIG = {
     "host": "database-1.civiomsc0jqa.us-east-1.rds.amazonaws.com",
@@ -57,7 +56,7 @@ def write_processing(df: pd.DataFrame, table: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--size", choices=["small", "medium", "large"], default="small")
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     for table in TABLES:
         print(f"Processing {table}...")
