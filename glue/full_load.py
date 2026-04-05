@@ -1,6 +1,5 @@
 import argparse
 import io
-from datetime import datetime, timezone
 
 import boto3
 import metrics
@@ -17,8 +16,8 @@ DB_CONFIG = {
 
 S3_BUCKET = "sh26-aws-ingestion"
 S3_PREFIX = "1-batch-ingestion-full-vs-incremental"
-RAW_PREFIX = f"{S3_PREFIX}/raw"
-PROCESSING_PREFIX = f"{S3_PREFIX}/processing"
+RAW_PREFIX = f"{S3_PREFIX}/raw/full"
+PROCESSING_PREFIX = f"{S3_PREFIX}/processing/full"
 
 TABLES = ["customers", "products", "orders", "order_items"]
 
@@ -43,12 +42,11 @@ def write_raw(df: pd.DataFrame, table: str):
 
 
 def write_processing(df: pd.DataFrame, table: str):
-    ingestion_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
     parquet_buffer = io.BytesIO()
     df.to_parquet(parquet_buffer, index=False)
     s3.put_object(
         Bucket=S3_BUCKET,
-        Key=f"{PROCESSING_PREFIX}/{table}/ingestion_ts={ingestion_timestamp}/data.parquet",
+        Key=f"{PROCESSING_PREFIX}/{table}/data.parquet",
         Body=parquet_buffer.getvalue(),
     )
 
