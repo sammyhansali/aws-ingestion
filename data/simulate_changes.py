@@ -1,20 +1,53 @@
 import argparse
 import random
+from datetime import datetime, timedelta
 
 import psycopg2
-from faker import Faker
-from faker_commerce import Provider as CommerceProvider
 
-fake = Faker()
-fake.add_provider(CommerceProvider)
+CITIES = [
+    "New York",
+    "Los Angeles",
+    "Chicago",
+    "Houston",
+    "Phoenix",
+    "Philadelphia",
+    "San Antonio",
+    "San Diego",
+    "Dallas",
+    "San Jose",
+]
+STATUSES = ["hyperactive", "active", "inactive", "churned"]
+ORDER_STATUSES = ["pending", "shipped", "delivered", "cancelled"]
+
+
+def random_city() -> str:
+    return random.choice(CITIES)
+
+
+def random_status() -> str:
+    return random.choice(STATUSES)
+
+
+def random_order_status() -> str:
+    return random.choice(ORDER_STATUSES)
+
+
+def random_price() -> float:
+    return round(random.uniform(1.0, 999.99), 2)
+
+
+def random_date_within_last_year() -> datetime:
+    days_ago = random.randint(0, 365)
+    return datetime.now() - timedelta(days=days_ago)
+
 
 DB_CONFIGS = {
-    "local": {
-        "host": "localhost",
-        "port": 5432,
-        "user": "admin",
-        "password": "admin",
-    },
+    # "local": {
+    #     "host": "localhost",
+    #     "port": 5432,
+    #     "user": "admin",
+    #     "password": "admin",
+    # },
     "rds": {
         "host": "database-1.civiomsc0jqa.us-east-1.rds.amazonaws.com",
         "port": 5432,
@@ -44,13 +77,9 @@ def simulate_customers(cur):
     SET city = %s, status = %s, updated_at = current_timestamp
     WHERE customer_id = %s
     """
-    city = fake.city()
-    status = fake.random_element(
-        elements=["hyperactive", "active", "inactive", "churned"]
-    )
     to_update = []
     for id in ids:
-        to_update.append((city, status, id))
+        to_update.append((random_city(), random_status(), id))
 
     cur.executemany(sql, to_update)
 
@@ -63,7 +92,7 @@ def simulate_products(cur, product_ids: list):
 
     cur.executemany(
         "UPDATE products SET price = %s, updated_at = current_timestamp WHERE product_id = %s",
-        [(fake.ecommerce_price(as_int=False), id) for id in price_update_ids],
+        [(random_price(), id) for id in price_update_ids],
     )
 
     cur.executemany(
@@ -76,9 +105,6 @@ def simulate_orders(cur, order_ids: list, mx_cust_id: int):
     # order status updates: 50% of changes
     # new orders: 50% of changes
     status_update_ids = random.sample(order_ids, k=int(CHANGES_PER_RUN * 0.5))
-    new_status = fake.random_element(
-        elements=["pending", "shipped", "delivered", "cancelled"]
-    )
     cur.executemany(
         """
         UPDATE orders
@@ -87,19 +113,17 @@ def simulate_orders(cur, order_ids: list, mx_cust_id: int):
             updated_at = current_timestamp
         WHERE order_id = %s
         """,
-        [(new_status, id) for id in status_update_ids],
+        [(random_order_status(), id) for id in status_update_ids],
     )
 
     to_insert = []
     mx = max(order_ids)
     for i in range(int(CHANGES_PER_RUN * 0.5)):
         order_id = mx + i + 1
-        customer_id = fake.random_int(min=1, max=mx_cust_id)
-        order_date = fake.date_time_between(start_date="-1y", end_date="now")
-        order_status = fake.random_element(
-            elements=["pending", "shipped", "delivered", "cancelled"]
-        )
-        total_amount = fake.ecommerce_price(as_int=False)
+        customer_id = random.randint(1, mx_cust_id)
+        order_date = random_date_within_last_year()
+        order_status = random_order_status()
+        total_amount = random_price()
 
         to_insert.append(
             (order_id, customer_id, order_date, order_status, total_amount)
@@ -122,8 +146,8 @@ def simulate_order_items(cur, order_ids: list, product_ids: list, order_item_ids
         order_item_id = mx + i + 1
         order_id = random.choice(order_ids)
         product_id = random.choice(product_ids)
-        quantity = fake.random_int(min=1, max=5)
-        unit_price = fake.ecommerce_price(as_int=False)
+        quantity = random.randint(1, 5)
+        unit_price = random_price()
         to_insert.append((order_item_id, order_id, product_id, quantity, unit_price))
 
     cur.executemany(
@@ -139,11 +163,9 @@ def simulate_order_items(cur, order_ids: list, product_ids: list, order_item_ids
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--env", choices=["local", "rds"], default="local")
-    args = parser.parse_args()
+    _, _ = argparse.ArgumentParser().parse_known_args()
 
-    conn = psycopg2.connect(**DB_CONFIGS[args.env])
+    conn = psycopg2.connect(**DB_CONFIGS["rds"])
     cur = conn.cursor()
 
     customer_ids = get_ids(cur, "customers", "customer_id")
