@@ -23,8 +23,8 @@ resource "aws_glue_job" "simulate_changes" {
 
     command {
         name = "pythonshell"
-        script_location = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/simulate-changes.py"
-        python_version = 3.9
+        script_location = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/simulate_changes.py"
+        python_version = "3.9"
     }
 }
 # resource "aws_glue_job" "full_load" {}
