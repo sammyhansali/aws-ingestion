@@ -57,7 +57,7 @@ DB_CONFIGS = {
     },
 }
 
-CHANGES_PER_RUN = 100
+CHANGES_PER_RUN = 100  #
 
 
 def get_ids(cur, table: str, id_col: str) -> list:
