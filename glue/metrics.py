@@ -8,7 +8,7 @@ import boto3
 import pandas as pd
 from botocore.exceptions import ClientError
 
-S3_BUCKET = "sh26-aws-ingestion"
+S3_BUCKET = "sh26-aws-ingestion-tf"
 METRICS_KEY = "1-batch-ingestion-full-vs-incremental/metrics/metrics.csv"
 
 GLUE_DPU = 0.0625

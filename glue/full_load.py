@@ -7,14 +7,14 @@ import pandas as pd
 import psycopg2
 
 DB_CONFIG = {
-    "host": "database-1.civiomsc0jqa.us-east-1.rds.amazonaws.com",
+    "host": "REDACTED_RDS_HOST",
     "port": 5432,
     "dbname": "postgres",
     "user": "REDACTED_USER",
     "password": "REDACTED",
 }
 
-S3_BUCKET = "sh26-aws-ingestion"
+S3_BUCKET = "sh26-aws-ingestion-tf"
 S3_PREFIX = "1-batch-ingestion-full-vs-incremental"
 RAW_PREFIX = f"{S3_PREFIX}/raw/full"
 PROCESSING_PREFIX = f"{S3_PREFIX}/processing/full"

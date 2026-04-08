@@ -27,5 +27,43 @@ resource "aws_glue_job" "simulate_changes" {
         python_version = "3.9"
     }
 }
-# resource "aws_glue_job" "full_load" {}
-# resource "aws_glue_job" "incremental_load" {}
+resource "aws_glue_job" "full_load" {
+    name = "1-batch-ingestion-full-vs-incremental_full-load"
+    description = "Full load from the postgres database, for the full batch vs incremental batch aws ingestion project."
+    role_arn = aws_iam_role.glue_role.arn
+    max_capacity = "0.0625"
+    max_retries = 0
+    timeout = 2880
+    connections = [aws_glue_connection.main.name]
+
+    command {
+        name = "pythonshell"
+        script_location = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/full_load.py"
+        python_version = "3.9"
+    }
+
+    default_arguments = {
+        "--extra-py-files" = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/metrics.py",
+        "--size" = "small"
+    }
+}
+resource "aws_glue_job" "incremental_load" {
+    name = "1-batch-ingestion-full-vs-incremental_incremental-load"
+    description = "Incremental load from the postgres database, for the full batch vs incremental batch aws ingestion project."
+    role_arn = aws_iam_role.glue_role.arn
+    max_capacity = "0.0625"
+    max_retries = 0
+    timeout = 2880
+    connections = [aws_glue_connection.main.name]
+
+    command {
+        name = "pythonshell"
+        script_location = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/incremental_load.py"
+        python_version = "3.9"
+    }
+
+    default_arguments = {
+        "--extra-py-files" = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/metrics.py",
+        "--size" = "small"
+    }
+}
