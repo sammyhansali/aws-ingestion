@@ -6,7 +6,7 @@ terraform {
         }
     }
     backend "s3" {
-        bucket = "sh26-aws-ingestion"
+        bucket = "sh26-aws-ingestion-tf"
         key = "terraform/state/terraform.tfstate"
         region = "us-east-1"
         profile = "terraform-admin"
