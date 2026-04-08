@@ -49,7 +49,7 @@ DB_CONFIGS = {
     #     "password": "admin",
     # },
     "rds": {
-        "host": "database-1.civiomsc0jqa.us-east-1.rds.amazonaws.com",
+        "host": "REDACTED_RDS_HOST",
         "port": 5432,
         "dbname": "postgres",
         "user": "REDACTED_USER",
