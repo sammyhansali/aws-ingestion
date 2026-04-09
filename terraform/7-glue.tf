@@ -69,3 +69,35 @@ resource "aws_glue_job" "incremental_load" {
         "library-set" = "analytics"
     }
 }
+
+resource "aws_glue_trigger" "hourly_simulate_changes" {
+    name = "hourly_simulate_changes"
+    type = "SCHEDULED"
+    schedule = "cron(0 * * * ? *)"
+
+    actions {
+        job_name = aws_glue_job.simulate_changes.name
+    }
+
+}
+
+resource "aws_glue_trigger" "on_simulate_ingest" {
+    name = "on_simulate_ingest"
+    type = "CONDITIONAL"
+
+    predicate {
+        conditions {
+            job_name = aws_glue_job.simulate_changes.name
+            state = "SUCCEEDED"
+        }
+    }
+
+    actions {
+        job_name = aws_glue_job.full_load.name
+    }
+
+    actions {
+        job_name = aws_glue_job.incremental_load.name
+    }
+
+}
