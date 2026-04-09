@@ -1,7 +1,7 @@
 resource "aws_glue_connection" "main" {
     name = "main"
     connection_properties = {
-        JDBC_CONNECTION_URL = "jdbc:postgresql://database-1.civiomsc0jqa.us-east-1.rds.amazonaws.com:5432/postgres"
+        JDBC_CONNECTION_URL = "jdbc:postgresql://${aws_db_instance.default.endpoint}/postgres"
         PASSWORD            = "REDACTED"
         USERNAME            = "REDACTED_USER"
     }
@@ -45,6 +45,7 @@ resource "aws_glue_job" "full_load" {
     default_arguments = {
         "--extra-py-files" = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/metrics.py",
         "--size" = "small"
+        "library-set" = "analytics"
     }
 }
 resource "aws_glue_job" "incremental_load" {
@@ -65,5 +66,6 @@ resource "aws_glue_job" "incremental_load" {
     default_arguments = {
         "--extra-py-files" = "s3://${aws_s3_bucket.main.bucket}/1-batch-ingestion-full-vs-incremental/glue/scripts/metrics.py",
         "--size" = "small"
+        "library-set" = "analytics"
     }
 }

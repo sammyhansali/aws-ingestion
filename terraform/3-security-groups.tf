@@ -41,6 +41,13 @@ resource "aws_security_group" "glue" {
     vpc_id = aws_vpc.main.id
 }
 
+ resource "aws_vpc_security_group_ingress_rule" "glue_self" {
+    security_group_id = aws_security_group.glue.id
+    description = "self referencing glue ingress rule"
+    ip_protocol = -1
+    referenced_security_group_id = aws_security_group.glue.id
+ }
+
 resource "aws_vpc_security_group_egress_rule" "glue_outbound" {
     security_group_id = aws_security_group.glue.id
     ip_protocol = "-1"
