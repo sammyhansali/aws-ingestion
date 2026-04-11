@@ -1,7 +1,9 @@
 import argparse
+import json
 import random
 from datetime import datetime, timedelta
 
+import boto3
 import psycopg2
 
 CITIES = [
@@ -41,21 +43,10 @@ def random_date_within_last_year() -> datetime:
     return datetime.now() - timedelta(days=days_ago)
 
 
-DB_CONFIGS = {
-    # "local": {
-    #     "host": "localhost",
-    #     "port": 5432,
-    #     "user": "admin",
-    #     "password": "admin",
-    # },
-    "rds": {
-        "host": "REDACTED_RDS_HOST",
-        "port": 5432,
-        "dbname": "postgres",
-        "user": "REDACTED_USER",
-        "password": "REDACTED",
-    },
-}
+_secret = boto3.client("secretsmanager", region_name="us-east-1").get_secret_value(
+    SecretId="1-batch-ingestion/rds-credentials"
+)
+DB_CONFIG = json.loads(_secret["SecretString"])
 
 CHANGES_PER_RUN = 100
 
@@ -165,7 +156,7 @@ def simulate_order_items(cur, order_ids: list, product_ids: list, order_item_ids
 if __name__ == "__main__":
     _, _ = argparse.ArgumentParser().parse_known_args()
 
-    conn = psycopg2.connect(**DB_CONFIGS["rds"])
+    conn = psycopg2.connect(**DB_CONFIG)
     cur = conn.cursor()
 
     customer_ids = get_ids(cur, "customers", "customer_id")

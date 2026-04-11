@@ -19,8 +19,8 @@ resource "aws_db_instance" "default" {
     engine               = "postgres"
     engine_version       = "17"
     instance_class       = "db.t3.micro"
-    username             = "REDACTED_USER"
-    password             = "REDACTED"
+    username             = var.db_username
+    password             = var.db_password
     vpc_security_group_ids = [aws_security_group.rds.id]
     db_subnet_group_name = aws_db_subnet_group.default.name
     publicly_accessible = true

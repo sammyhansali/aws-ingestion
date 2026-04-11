@@ -8,13 +8,10 @@ import metrics
 import pandas as pd
 import psycopg2
 
-DB_CONFIG = {
-    "host": "REDACTED_RDS_HOST",
-    "port": 5432,
-    "dbname": "postgres",
-    "user": "REDACTED_USER",
-    "password": "REDACTED",
-}
+_secret = boto3.client("secretsmanager", region_name="us-east-1").get_secret_value(
+    SecretId="1-batch-ingestion/rds-credentials"
+)
+DB_CONFIG = json.loads(_secret["SecretString"])
 
 S3_BUCKET = "sh26-aws-ingestion-tf"
 S3_PREFIX = "1-batch-ingestion-full-vs-incremental"
