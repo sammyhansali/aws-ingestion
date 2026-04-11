@@ -1,4 +1,6 @@
 import argparse
+import csv
+import io
 
 import psycopg2
 from faker import Faker
@@ -43,84 +45,63 @@ def already_seeded(cur, table: str) -> bool:
 
 
 def seed_customers(cur, idx):
-    sql = """
-    insert into CUSTOMERS (customer_id, name, email, city, status)
-    VALUES (%s, %s, %s, %s, %s)
-    """
-    to_insert = []
-
+    buf = io.StringIO()
+    writer = csv.writer(buf)
     for i in range(COUNTS["customers"][idx]):
-        customer_id = i + 1
-        name = fake.unique.name()
-        email = fake.unique.email()
-        city = fake.city()
-        status = fake.random_element(
-            elements=["hyperactive", "active", "inactive", "churned"]
-        )
-
-        to_insert.append((customer_id, name, email, city, status))
-
-    cur.executemany(sql, to_insert)
+        writer.writerow([
+            i + 1,
+            fake.unique.name(),
+            fake.unique.email(),
+            fake.city(),
+            fake.random_element(elements=["hyperactive", "active", "inactive", "churned"]),
+        ])
+    buf.seek(0)
+    cur.copy_expert("COPY customers (customer_id, name, email, city, status) FROM STDIN WITH CSV", buf)
 
 
 def seed_products(cur, idx):
-    sql = """
-    INSERT INTO products (product_id, product_name, description, price, is_active)
-    VALUES (%s, %s, %s, %s, %s)
-    """
-    to_insert = []
-
+    buf = io.StringIO()
+    writer = csv.writer(buf)
     for i in range(COUNTS["products"][idx]):
-        product_id = i + 1
-        product_name = fake.unique.ecommerce_name()
-        description = f"{fake.ecommerce_material()} {fake.ecommerce_category()} product. {fake.sentence()}"
-        price = fake.ecommerce_price(as_int=False)
-        is_active = fake.random_element(elements=[True, True, True, False])
-
-        to_insert.append((product_id, product_name, description, price, is_active))
-
-    cur.executemany(sql, to_insert)
+        writer.writerow([
+            i + 1,
+            fake.unique.ecommerce_name(),
+            f"{fake.ecommerce_material()} {fake.ecommerce_category()} product. {fake.sentence()}",
+            fake.ecommerce_price(as_int=False),
+            fake.random_element(elements=[True, True, True, False]),
+        ])
+    buf.seek(0)
+    cur.copy_expert("COPY products (product_id, product_name, description, price, is_active) FROM STDIN WITH CSV", buf)
 
 
 def seed_orders(cur, idx):
-    sql = """
-    INSERT INTO orders (order_id, customer_id, order_date, order_status, total_amount)
-    VALUES (%s, %s, %s, %s, %s)
-    """
-    to_insert = []
-
+    buf = io.StringIO()
+    writer = csv.writer(buf)
     for i in range(COUNTS["orders"][idx]):
-        order_id = i + 1
-        customer_id = fake.random_int(min=1, max=COUNTS["customers"][idx])
-        order_date = fake.date_time_between(start_date="-1y", end_date="now")
-        order_status = fake.random_element(
-            elements=["pending", "shipped", "delivered", "cancelled"]
-        )
-        total_amount = fake.ecommerce_price(as_int=False)
-
-        to_insert.append(
-            (order_id, customer_id, order_date, order_status, total_amount)
-        )
-
-    cur.executemany(sql, to_insert)
+        writer.writerow([
+            i + 1,
+            fake.random_int(min=1, max=COUNTS["customers"][idx]),
+            fake.date_time_between(start_date="-1y", end_date="now"),
+            fake.random_element(elements=["pending", "shipped", "delivered", "cancelled"]),
+            fake.ecommerce_price(as_int=False),
+        ])
+    buf.seek(0)
+    cur.copy_expert("COPY orders (order_id, customer_id, order_date, order_status, total_amount) FROM STDIN WITH CSV", buf)
 
 
 def seed_order_items(cur, idx):
-    sql = """
-   INSERT INTO order_items (order_item_id, order_id, product_id, quantity, unit_price)
-   VALUES (%s, %s, %s, %s, %s)
-   """
-    to_insert = []
+    buf = io.StringIO()
+    writer = csv.writer(buf)
     for i in range(COUNTS["order_items"][idx]):
-        order_item_id = i + 1
-        order_id = fake.random_int(min=1, max=COUNTS["orders"][idx])
-        product_id = fake.random_int(min=1, max=COUNTS["products"][idx])
-        quantity = fake.random_int(min=1, max=5)
-        unit_price = fake.ecommerce_price(as_int=False)
-
-        to_insert.append((order_item_id, order_id, product_id, quantity, unit_price))
-
-    cur.executemany(sql, to_insert)
+        writer.writerow([
+            i + 1,
+            fake.random_int(min=1, max=COUNTS["orders"][idx]),
+            fake.random_int(min=1, max=COUNTS["products"][idx]),
+            fake.random_int(min=1, max=5),
+            fake.ecommerce_price(as_int=False),
+        ])
+    buf.seek(0)
+    cur.copy_expert("COPY order_items (order_item_id, order_id, product_id, quantity, unit_price) FROM STDIN WITH CSV", buf)
 
 
 if __name__ == "__main__":

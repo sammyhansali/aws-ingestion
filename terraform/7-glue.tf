@@ -70,10 +70,11 @@ resource "aws_glue_job" "incremental_load" {
     }
 }
 
-resource "aws_glue_trigger" "hourly_simulate_changes" {
-    name = "hourly_simulate_changes"
+resource "aws_glue_trigger" "recurring_simulate_changes" {
+    name = "recurring_simulate_changes"
     type = "SCHEDULED"
-    schedule = "cron(0 * * * ? *)"
+    schedule = "cron(0/5 * * * ? *)"
+    enabled = true
 
     actions {
         job_name = aws_glue_job.simulate_changes.name
@@ -84,6 +85,7 @@ resource "aws_glue_trigger" "hourly_simulate_changes" {
 resource "aws_glue_trigger" "on_simulate_ingest" {
     name = "on_simulate_ingest"
     type = "CONDITIONAL"
+    enabled = true
 
     predicate {
         conditions {
