@@ -78,7 +78,7 @@ con.close()
 
 correctness = pd.DataFrame({"table": TABLES, "src": src_records, "tgt": tgt_records})
 correctness["drift"] = correctness["tgt"] - correctness["src"]
-correctness.to_csv(os.path.join(OUTPUT_DIR, "correctness.csv"), index=False)
+correctness.to_markdown(os.path.join(OUTPUT_DIR, "correctness.md"), index=False)
 
 # ── Performance ───────────────────────────────────────────────────────────────
 print("\nPerformance:")
@@ -97,7 +97,7 @@ perf = con.execute("""
 """).df()
 con.close()
 print(perf.to_string(index=False))
-perf.to_csv(os.path.join(OUTPUT_DIR, "performance.csv"), index=False)
+perf.to_markdown(os.path.join(OUTPUT_DIR, "performance.md"), index=False)
 
 # ── Cost ──────────────────────────────────────────────────────────────────────
 print("\nCost:")
@@ -124,7 +124,7 @@ cost = con.execute("""
 """).df()
 con.close()
 print(cost.to_string(index=False))
-cost.to_csv(os.path.join(OUTPUT_DIR, "cost.csv"), index=False)
+cost.to_markdown(os.path.join(OUTPUT_DIR, "cost.md"), index=False)
 
 # ── Plots ─────────────────────────────────────────────────────────────────────
 
