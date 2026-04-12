@@ -54,7 +54,7 @@ There are three main factors that I kept in mind while performing the analysis.
 #### Cost
 
 <p align="center">  
-    <img src="./analysis/output/cost.png" width=80%>
+    <img src="analysis/output/cost.png" width=80%>
 </p>
 
 <div align="center">
