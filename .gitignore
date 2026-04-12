@@ -15,4 +15,3 @@ wheels/
 terraform/*.tfvars
 
 analysis/analysis.ipynb
-analysis/output/
