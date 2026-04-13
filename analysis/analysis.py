@@ -48,7 +48,15 @@ def make_con():
 # ── Load metrics ──────────────────────────────────────────────────────────────
 print("Loading metrics...")
 con = make_con()
-df = con.execute(f"select * from read_csv('{METRICS_PATH}')").df()
+df = con.execute(
+    f"""
+select
+    *,
+    row_number() over 
+        (partition by job_type, "table" order by run_timestamp) as run_id
+from read_csv('{METRICS_PATH}')
+"""
+).df()
 con.close()
 print(f"  {len(df)} rows loaded")
 
@@ -106,10 +114,10 @@ cost = con.execute("""
     with per_run as (
         select
             job_type,
-            date_trunc('minute', run_timestamp::timestamptz) as run_minute,
+            run_id,
             sum(estimated_cost_usd) as run_cost_usd
         from df
-        group by job_type, run_minute
+        group by job_type, run_id
     )
     select
         job_type,
@@ -125,6 +133,32 @@ cost = con.execute("""
 con.close()
 print(cost.to_string(index=False))
 cost.to_markdown(os.path.join(OUTPUT_DIR, "cost.md"), index=False)
+
+con = duckdb.connect()
+cost_per_run = con.execute("""
+    with with_run_id as (
+        select
+            *
+        from df
+    ),
+    per_run as (
+        select
+            job_type,
+            run_id,
+            sum(estimated_cost_usd) as run_cost_usd
+        from with_run_id
+        group by job_type, run_id
+    )
+    select
+        job_type,
+        run_id,
+        run_cost_usd,
+        sum(run_cost_usd) over (partition by job_type order by run_id) as cumulative_cost_usd
+    from per_run
+    order by job_type, run_id
+""").df()
+con.close()
+cost_per_run.to_csv(os.path.join(OUTPUT_DIR, "cost_per_run.csv"), index=False)
 
 # ── Plots ─────────────────────────────────────────────────────────────────────
 
@@ -152,17 +186,10 @@ plt.close()
 # Cumulative cost
 fig, ax = plt.subplots(figsize=(12, 5))
 for job_type, color in PALETTE.items():
-    per_run = (
-        df[df["job_type"] == job_type]
-        .groupby("run_timestamp")["estimated_cost_usd"]
-        .sum()
-        .reset_index()
-        .sort_values("run_timestamp")
-    )
-    per_run["cumulative_cost"] = per_run["estimated_cost_usd"].cumsum()
+    subset = cost_per_run[cost_per_run["job_type"] == job_type]
     ax.plot(
-        range(1, len(per_run) + 1),
-        per_run["cumulative_cost"],
+        subset["run_id"],
+        subset["cumulative_cost_usd"],
         label=job_type,
         color=color,
         linewidth=2,
