@@ -40,10 +40,10 @@ answer
 - **Source:** RDS Postgres database.
     - Every 5 minutes: inserts, updates, soft deletes, and hard deletes.
     - Each table gets 100 changes in total.
-        - Customers: 100 updates.
-        - Products: 70 updates, 30 soft deletes.
-        - Orders: 50 updates, 50 new records.
-        - Order Items: 70 new records, 30 hard deletes.
+        - Customers (100k records): 100 updates.
+        - Products (10k records): 70 updates, 30 soft deletes.
+        - Orders (50k records): 50 updates, 50 new records.
+        - Order Items (150k records): 70 new records, 30 hard deletes.
 - **Ingestion & Transformation:** Glue.
 - **Target:** S3.
     &rarr; Landing Zone (raw, csv).
@@ -114,7 +114,7 @@ To estimate the cost of each run, I calculated
     Figure 1. Cumulative Cost Over Time: Full vs Incremental
 </p>
 
-Figure 1 shows the cumulative cost over time for each pipeline. As you can see, there is quite a big gap between the two. This gap is better understood upon inspection of Table 1, where it becomes clear that the full pipeline costs an order of magnitude more. If you were to run these pipelines hourly for a whole month, you should expect to spend about **\$0.074** and **$0.009** on full and incremental, respectively.
+**Figure 1** shows the cumulative cost over time for each pipeline. As you can see, there is quite a big gap between the two. This gap is better understood upon inspection of **Table 1**, where it becomes clear that the full pipeline costs an order of magnitude more. If you were to run these pipelines hourly for a whole month, you should expect to spend about **\$0.074** and **$0.009** on full and incremental, respectively.
 
 <div align="center">
 
@@ -128,11 +128,71 @@ Table 1. Cost Data: Full vs Incremental
 
 #### Performance
 
+When analyzing pipeline performance, its important to look at percentiles. For example if you are looking at runtimes, the average just isn't nearly as informative as knowing the p50, p95, and p99. Thus, a good way of visualizing runtime is by plotting the distribution, as shown in **Figure 2**.
+<p align="center">  
+    <img src="./analysis/output/runtime.png" width=100%>
+    Figure 2. Runtime Distribution: Full vs Incremental
+</p>
+
+The biggest difference between ingestion pipelines is when it came to the `orders` and `order_items` tables. This is unsurprising, since they have 50k and 150k records to start, respectively. As shown in **Table 2**, the median runtime for `order_items` full and incremental is 7.809 seconds and 0.102 seconds, respectively. Median memory usage for that same set was even starker: 73.575 mb versus 0.190 mb. When looking at performance data for tables that are much smaller, like customers and products, the distributions are much closer together.
+
+<div align="center">
+
+| job_type    | table       |   median_runtime_s |   min_runtime_s |   max_runtime_s |   median_memory_mb |
+|:------------|:------------|-------------------:|----------------:|----------------:|-------------------:|
+| full        | customers   |              1.378 |           1.034 |          49.508 |             16.033 |
+| incremental | customers   |              0.885 |           0.5   |           1.913 |              8.812 |
+| full        | order_items |              7.809 |           7.564 |           9.24  |             73.575 |
+| incremental | order_items |              0.102 |           0.092 |           8.912 |              0.19  |
+| full        | orders      |              3.353 |           3.183 |           4.045 |             31.881 |
+| incremental | orders      |              0.099 |           0.09  |           3.555 |              0.221 |
+| full        | products    |              0.159 |           0.133 |           0.309 |              0.908 |
+| incremental | products    |              0.094 |           0.08  |           0.175 |              0.228 |
+
+Table 2. Performance Data: Full vs Incremental
+</div>
+
 #### Correctness
 
-### Running the Code
-**`...detailed code instructions go here...`**
+To evaluate correctness, the drift was quantified. In tables that had only inserts or updates (`customers`, `products`, `orders`), no drift was measured (**Figure 3**). The only table with drift was `order_items`, which had hard deletes.
 
+<p align="center">  
+    <img src="./analysis/output/correctness.png" width=100%>
+    Figure 3. Correctness: Source vs Incremental Target Row Counts
+</p>
+
+This is also shown in **Table 3**, where the `order_items` drift is 2160 records. This exposes one of the main weaknesses of incremental pipelines: handling hard deletions.
+
+<div align="center">
+
+| table       |    src |    tgt |   drift |
+|:------------|-------:|-------:|--------:|
+| customers   |  10000 |  10000 |       0 |
+| products    |   1000 |   1000 |       0 |
+| orders      |  53650 |  53650 |       0 |
+| order_items | 152920 | 155080 |    2160 |
+
+Table 3. Correctness Data: Full vs Incremental
+</div>
+
+### Running the Code
+This is my setup (not currently designed for others to be able to run it, yet) to actually run this project.
+
+1. Spin up AWS resources
+```
+cd ./terraform
+terraform apply
+cd ..
+```
+2. Create tables
+```
+psql <connection to rds db> -f ./data/create_tables.sql
+```
+3. Seed tables
+```
+uv run ./data/seed_tables.py --env rds --size large
+```
+4. Monitor results from Glue
 --- 
 
 # Methods
