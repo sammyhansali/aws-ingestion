@@ -3,8 +3,8 @@ name: sync glue scripts to s3
 on:
   push:
     branches: [feat/1-batch-ingestion-full-vs-incremental]
-    paths: 
-      - 'glue/**'
+    paths:
+      - '1-batch-ingestion-full-vs-incremental/glue/**'
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -21,4 +21,4 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      - run: aws s3 sync glue/ s3://sh26-aws-ingestion-tf/1-batch-ingestion-full-vs-incremental/glue/scripts/
+      - run: aws s3 sync 1-batch-ingestion-full-vs-incremental/glue/ s3://sh26-aws-ingestion-tf/1-batch-ingestion-full-vs-incremental/glue/scripts/

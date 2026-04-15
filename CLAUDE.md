@@ -17,17 +17,17 @@ docker-compose up -d
 
 **Run the project:**
 ```bash
-python main.py
+python 1-batch-ingestion-full-vs-incremental/main.py
 ```
 
 **Seed the database:**
 ```bash
-python data/seed_tables.py
+python 1-batch-ingestion-full-vs-incremental/data/seed_tables.py
 ```
 
 **Simulate data changes (for incremental testing):**
 ```bash
-python data/simulate_changes.py
+python 1-batch-ingestion-full-vs-incremental/data/simulate_changes.py
 ```
 
 ## Architecture
@@ -47,7 +47,7 @@ Two pipelines are compared:
 - IaC: Terraform (planned) to replicate all AWS resources
 
 ### Key Files
-- `data/create_tables.sql` — source schema DDL
-- `data/seed_tables.py` — generates synthetic test data at small/medium/large scale
-- `data/simulate_changes.py` — simulates INSERTs, UPDATEs, DELETEs for incremental testing
-- `images/` — architecture and data model diagrams (draw.io / dbdiagram.io)
+- `1-batch-ingestion-full-vs-incremental/data/create_tables.sql` — source schema DDL
+- `1-batch-ingestion-full-vs-incremental/data/seed_tables.py` — generates synthetic test data at small/medium/large scale
+- `1-batch-ingestion-full-vs-incremental/data/simulate_changes.py` — simulates INSERTs, UPDATEs, DELETEs for incremental testing
+- `1-batch-ingestion-full-vs-incremental/images/` — architecture and data model diagrams (draw.io / dbdiagram.io)

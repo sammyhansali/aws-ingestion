@@ -7,7 +7,7 @@ terraform {
     }
     backend "s3" {
         bucket = "sh26-aws-ingestion-tf"
-        key = "terraform/state/terraform.tfstate"
+        key = "terraform/state/1-batch-ingestion-full-vs-incremental.tfstate"
         region = "us-east-1"
         profile = "terraform-admin"
     }
