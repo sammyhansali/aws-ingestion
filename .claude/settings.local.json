@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /c/Users/sammy/Projects/mini-projects/aws-ingestion log --oneline feat/2-cdc-dms -5)",
+      "Bash(git -C /c/Users/sammy/Projects/mini-projects/aws-ingestion log --all --graph --oneline)",
+      "Bash(git -C /c/Users/sammy/Projects/mini-projects/aws-ingestion log --oneline feat/2-cdc-dms..main)",
+      "Bash(git:*)"
+    ]
+  }
+}
