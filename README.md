@@ -10,25 +10,38 @@ A series of mini-projects to build and analyze tradeoffs of different data inges
 I like to frame my main takeaways in a question & answer format, so that it makes it easier to review and test my knowledge later. Below are the things that I have learned from each project.
 
 ### 1: Batch Ingestion (Full vs Incremental)
-> What are the main (quantifiable) tradeoffs to consider when picking a batch ingestion strategy?
+> Q1. What are the main factors to consider when picking a batch ingestion strategy?
 
-answer
+The purpose of a batch ingestion pipeline is to load data from your sources to your target. Before picking a strategy, it is helpful to answer questions arising from the [4V Framework](https://www.researchgate.net/publication/263123409_How_global_brands_create_firm_value_The_4V_model):
+- **Variety:** What kind of data will be ingested (structured, unstructured, semi)?
+- **Volume:** How much data needs to be moved?
+- **Velocity:** How often does data need to move?
+- **Veracity:** What are the requirements on quality/accuracy/completeness?
 
-> When would I use a full load?
+There are some other considerations as well (that unfortunately don't start with V!):
+- **Load:** How much resources can your source systems spare? Are they normally under high load? 
+- **Complexity:** How much infrastructure do you have and complexity you are able to deal with?
+- **Cost:** What is the budget? (though I like to optimize for this factor last, since it will always be a goal to minimize cost).
 
-answer
+> Q2. What causes incremental pipelines to break?
 
-> When would I use an incremental loading strategy?
+Hard deletes, schema changes, a missing/inconsistent "updated_at" field, late-arriving data, and checkpoint corruption/failure are all issues that cause incremental pipelines to break. 
 
-answer
+Hard deletes is the only failure mode that I purposely explored in this project. Schema changes in the source system pose an issue because incremental pipelines can't detect them. Another problem is "updated_at" fields, which can be defined inconsistently (or not at all) across systems. Late arriving dimensions poses an issue too: since the updated_at field will be backdated it will be missed by future runs. 
 
-> What causes incremental pipelines to break?
+Finally, corruption/failure with the checkpoint is another failure mode. I actually discovered this one accidentally. I was looking at my analysis charts after finishing the pipeline runs and noticed that the amount of rows in the target tables were not what I expected. Looking at the logs I realized that I started off with an incorrect checkpoint (from a test run that I forgot to delete). I then deleted the checkpoint, restarted the pipeline, and everything came out well.
 
-answer
+> Q3. What about Change Data Capture (CDC)?
 
-> What is the purpose of Change Data Capture (CDC)?
+CDC provides real-time information on what changes occured in a database (new records, updates, hard deletes). This information can then be used to sync the target with the source. Importantly, CDC is robust to hard deletions (unlike incremental pipelines). Thus, CDC can possibly be useful for situations where the source db has hard deletes, yet full loads are unwanted (either due to cost, performance, or data freshness requirements).
 
-answer
+CDC isn't a silver bullet, of course, and I'll discuss its failure modes in a future project (most likely using AWS DMS or Kafka + Debezium for implementation).
+
+> Q4. When would I use a full load, an incremental load strategy, and a CDC strategy? Tradeoffs to consider?
+
+Based on the factors from question 1, below is my general framework for picking a load strategy (assuming tabular data sources only).
+
+I start with a bias towards the full loading strategy. Its the simplest and suited for most scenarios. Especially if the data **volume** is low. If volume is high, performance will start to suffer and you will incur heavy load on the source. This really can start to hurt you depending on your **velocity** requirements. If your load time is greater than the data freshness requirement, then that is an obvious no-go and you will have to abandon the full strategy. On the extreme-side of velocity, where you need fresh data on a real-time basis, your only real option is CDC. An incremental pipeline could work for batch or micro-batch. But incremental could also have a negative effect on your data's **veracity**. As shown in the analysis, incremental isn't very good at handling hard deletes from the source. But... if your data doesn't need to be *completely* correct that might be fine. Some data teams use a daily incremental pipeline to get new data quickly, and a full batch pipeline every sunday (when load is low) to correct the mistakes. Or a micro-batch incremental pipeline and daily full batch. Of course if you are doing that it may just make sense to go with a CDC pipeline where you can determine how often the data gets updated and worry less about performance and load. The flip-side of pursuing CDC is the extra complexity cost associated with building and maintaining it. Even with an experienced team, complexity adds up and its better to go with the simplest solution that fits the business requirements.
 
 ---
 
