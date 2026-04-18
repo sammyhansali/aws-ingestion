@@ -70,7 +70,7 @@ I start with a bias towards the full loading strategy. Its the simplest and suit
     &rarr; Landing Zone (raw, csv).
     &rarr; Processed Zone (partitioned, parquet).
 
-![](./images/1-batch-ingestion-full-vs-incremental.drawio.png)
+![](./1-batch-ingestion-full-vs-incremental/images/1-batch-ingestion-full-vs-incremental.drawio.png)
 
 **Seeding:** The source tables were seeded with a python script that creates a connection to the RDS database, creates the tables if they do not exist already, truncates them, and then copies synthetically generated data into them. 
 
@@ -131,7 +131,7 @@ To estimate the cost of each run, I calculated
 `cost_usd = (runtime_seconds / 3600) * GLUE_DPU * GLUE_DPU_PRICE_PER_HOUR` (where `GLUE_DPU = 0.0625` (because I configured my Glue jobs to use only 1/16th of a DPU) and `GLUE_DPU_PRICE_PER_HOUR = 0.44`). 
 
 <p align="center">  
-    <img src="./analysis/output/cost.png" width=100%>
+    <img src="./1-batch-ingestion-full-vs-incremental/analysis/output/cost.png" width=100%>
     Figure 1. Cumulative Cost Over Time: Full vs Incremental
 </p>
 
@@ -151,7 +151,7 @@ Table 1. Cost Data: Full vs Incremental
 
 When analyzing pipeline performance, its important to look at percentiles. For example if you are looking at runtimes, the average just isn't nearly as informative as knowing the p50, p95, and p99. Thus, a good way of visualizing runtime is by plotting the distribution, as shown in **Figure 2**.
 <p align="center">  
-    <img src="./analysis/output/runtime.png" width=100%>
+    <img src="./1-batch-ingestion-full-vs-incremental/analysis/output/runtime.png" width=100%>
     Figure 2. Runtime Distribution: Full vs Incremental
 </p>
 
@@ -178,7 +178,7 @@ Table 2. Performance Data: Full vs Incremental
 To evaluate correctness, the drift was quantified. In tables that had only inserts or updates (`customers`, `products`, `orders`), no drift was measured (**Figure 3**). The only table with drift was `order_items`, which had hard deletes.
 
 <p align="center">  
-    <img src="./analysis/output/correctness.png" width=100%>
+    <img src="./1-batch-ingestion-full-vs-incremental/analysis/output/correctness.png" width=100%>
     Figure 3. Correctness: Source vs Incremental Target Row Counts
 </p>
 
@@ -249,7 +249,7 @@ For the projects, I decided to create a single synthetic dataset with a simple d
 
 **... (add more explanation to how the data was generated and assumptions) ...**
 <p align="center">  
-    <img src="./images/data-model_1-batch-ingestion-full-vs-incremental.png" width=100%>
+    <img src="./1-batch-ingestion-full-vs-incremental/images/data-model_1-batch-ingestion-full-vs-incremental.png" width=100%>
 </p>
 
 **... (preview of the data here) ...**
