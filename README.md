@@ -43,6 +43,14 @@ Based on the factors from question 1, below is my general framework for picking 
 
 I start with a bias towards the full loading strategy. Its the simplest and suited for most scenarios. Especially if the data **volume** is low. If volume is high, performance will start to suffer and you will incur heavy load on the source. This really can start to hurt you depending on your **velocity** requirements. If your load time is greater than the data freshness requirement, then that is an obvious no-go and you will have to abandon the full strategy. On the extreme-side of velocity, where you need fresh data on a real-time basis, your only real option is CDC. An incremental pipeline could work for batch or micro-batch. But incremental could also have a negative effect on your data's **veracity**. As shown in the analysis, incremental isn't very good at handling hard deletes from the source. But... if your data doesn't need to be *completely* correct that might be fine. Some data teams use a daily incremental pipeline to get new data quickly, and a full batch pipeline every sunday (when load is low) to correct the mistakes. Or a micro-batch incremental pipeline and daily full batch. Of course if you are doing that it may just make sense to go with a CDC pipeline where you can determine how often the data gets updated and worry less about performance and load. The flip-side of pursuing CDC is the extra complexity cost associated with building and maintaining it. Even with an experienced team, complexity adds up and its better to go with the simplest solution that fits the business requirements.
 
+### 2: Change Data Capture
+
+> Q1.
+
+> Q2.
+
+> Q3.
+
 ---
 
 # Results
@@ -206,6 +214,32 @@ psql <connection to rds db> -f ./data/create_tables.sql
 uv run ./data/seed_tables.py --env rds --size large
 ```
 4. Monitor results from Glue
+
+## 2: Change Data Capture
+**Goals:** Build a pipeline that generates (via DMS) and captures Change Data Capture events and merges them to an S3 data lake every 5 minutes. The pipeline will be tested under two scenarios: the first will simulate a normal OLTP load and the second will simulate a load that is stressful for CDC (such as rapid bursts to the same row within a short time and high concurrency writes to the same row). Understand how to implement CDC, how it behaves under edge cases, and how to handle them during reconstruction.
+
+- **Source:** RDS Postgres database.
+    - Normal Load
+      - Every 5 minutes: inserts, updates, and hard deletes (IUD).
+    - Stress Load (manual, per experiment)
+      - Burst updates to the same row
+      - Concurrent same-row writes 
+      - Insert-then-delete before DMS flush
+      - Large single transaction
+      - Rollback (DMS should not surface these)
+    - One table to allow better focus on reconstruction behavior
+- **Ingestion:** DMS.
+- **Transformation:** Glue.
+- **Target:** S3.
+    &rarr; Change Log (raw, csv).
+    &rarr; Current State (partitioned, parquet).
+
+![](./2-cdc-dms/images/2-cdc-dms.drawio.png)
+
+### Analysis
+
+### Running the Code
+
 --- 
 
 # Methods
