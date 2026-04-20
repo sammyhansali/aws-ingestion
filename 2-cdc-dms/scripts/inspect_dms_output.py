@@ -7,10 +7,13 @@ Usage: python inspect_dms_output.py --bucket <bucket> --prefix change-log/
 """
 
 import argparse
+import sys
 import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import duckdb
 from dotenv import load_dotenv
+
+from dms_io import make_con, read_cdc_files, read_load_files
 
 load_dotenv()
 
@@ -18,54 +21,11 @@ S3_BUCKET = "sh26-aws-ingestion"
 S3_PREFIX = "2-cdc-dms/change-log/public/transactions"
 
 
-def make_con():
-    con = duckdb.connect()
-    con.execute("install httpfs; load httpfs;")
-    con.execute(
-        f"""
-        create or replace secret secret (
-            type s3,
-            provider config,
-            key_id '{os.environ["AWS_ACCESS_KEY_ID"]}',
-            secret '{os.environ["AWS_SECRET_ACCESS_KEY"]}',
-            region 'us-east-1'
-        )
-        """
-    )
-    return con
-
-
 def inspection(cur) -> None:
-    col_types = {
-        "op": "varchar(1)",
-        "id": "integer",
-        "user_id": "integer",
-        "amount": "numeric(10,2)",
-        "status": "varchar(20)",
-        "metadata": "json",
-        "version": "integer",
-        "created_at": "timestamptz",
-        "updated_at": "timestamptz",
-    }
-    cols = list(col_types.keys())
-
-    cdc_df = cur.execute(
-        f"""
-        select *
-        from read_csv('s3://{S3_BUCKET}/{S3_PREFIX}/2026*.csv', names={cols}, types={col_types})
-        """
-    ).df()
+    cdc_df = read_cdc_files(cur, f"s3://{S3_BUCKET}/{S3_PREFIX}/2026*.csv")
     print(cdc_df.head())
 
-    del col_types["op"]
-    cols = cols[1:]
-
-    load_df = cur.execute(
-        f"""
-        select *
-        from read_csv('s3://{S3_BUCKET}/{S3_PREFIX}/LOAD*.csv', names={cols}, types={col_types})
-        """
-    ).df()
+    load_df = read_load_files(cur, f"s3://{S3_BUCKET}/{S3_PREFIX}/LOAD*.csv")
     print(load_df.head())
 
     # Schema inspection
