@@ -64,14 +64,13 @@ def load_seed_data() -> pd.DataFrame:
 def list_cdc_files(s3, since_key: str | None) -> list[str]:
     """Return S3 URIs for CDC files with key > since_key, in lexicographic order."""
     resp = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=f"{CHANGE_LOG_PREFIX}/")
-    print([o["Key"] for o in resp.get("Contents", [])])
+    # print([o["Key"] for o in resp.get("Contents", [])])
     keys = [
         o["Key"]
         for o in resp.get("Contents", [])
         if not o["Key"].split("/")[-1].startswith("LOAD")
         and (since_key is None or o["Key"] > since_key)
     ]
-    print(keys)
     keys.sort()
     return [f"s3://{S3_BUCKET}/{k}" for k in keys]
 
@@ -109,8 +108,6 @@ def read_current_state(s3) -> pd.DataFrame:
     """Read current-state Parquet from S3."""
     obj = s3.get_object(Bucket=S3_BUCKET, Key=f"{CURRENT_STATE_PREFIX}/data.parquet")
     df = pd.read_parquet(io.BytesIO(obj["Body"].read()))
-    # path = f"s3://{S3_BUCKET}/{CURRENT_STATE_PREFIX}/data.parquet"
-    # df = pd.read_parquet(path)
     return df
 
 
@@ -139,7 +136,6 @@ def main():
     else:
         current_df = read_current_state(s3)
         changes_df, last_cdc_key = get_cdc_files(s3, since_key=watermark["last_key"])
-        print(changes_df)
         if (changes_df is None) or (changes_df.empty):
             return
         new_df = apply_ops(current_df, changes_df)

@@ -16,8 +16,8 @@ CDC_COL_TYPES = {
     "status": "varchar(20)",
     "metadata": "json",
     "version": "integer",
-    "created_at": "timestamptz",
-    "updated_at": "timestamptz",
+    "created_at": "timestamp",
+    "updated_at": "timestamp",
 }
 LOAD_COL_TYPES = {k: v for k, v in CDC_COL_TYPES.items() if k != "op"}
 
@@ -28,6 +28,7 @@ LOAD_COLS = list(LOAD_COL_TYPES.keys())
 def make_con() -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()
     con.execute("install httpfs; load httpfs;")
+    con.execute("set TimeZone='UTC'")
     con.execute(
         f"""
         create or replace secret secret (
