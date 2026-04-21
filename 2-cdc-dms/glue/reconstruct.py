@@ -36,8 +36,8 @@ def load_watermark(s3) -> str | None:
         obj = s3.get_object(Bucket=S3_BUCKET, Key=WATERMARK_KEY)
         watermark = json.loads(obj["Body"].read())
         return watermark
-    except Exception as e:
-        print(f"No watermark found. Exception: {e}")
+    except Exception:
+        # print(f"No watermark found. Exception: {e}")
         return None
 
 
@@ -64,25 +64,28 @@ def load_seed_data() -> pd.DataFrame:
 def list_cdc_files(s3, since_key: str | None) -> list[str]:
     """Return S3 URIs for CDC files with key > since_key, in lexicographic order."""
     resp = s3.list_objects_v2(Bucket=S3_BUCKET, Prefix=f"{CHANGE_LOG_PREFIX}/")
+    print([o["Key"] for o in resp.get("Contents", [])])
     keys = [
         o["Key"]
         for o in resp.get("Contents", [])
         if not o["Key"].split("/")[-1].startswith("LOAD")
         and (since_key is None or o["Key"] > since_key)
     ]
+    print(keys)
     keys.sort()
     return [f"s3://{S3_BUCKET}/{k}" for k in keys]
 
 
 def get_cdc_files(s3, since_key: str | None) -> pd.DataFrame:
     """Read CDC files newer than since_key. Returns empty DataFrame if none."""
-    paths = list_cdc_files(s3, since_key)
-    if not paths:
-        return None
+    keys = list_cdc_files(s3, since_key)
+    if not keys:
+        return None, None
     con = make_con()
-    df = _read_cdc_files(con.cursor(), paths)
+    df = _read_cdc_files(con.cursor(), keys)
     con.close()
-    return df
+    last_key = keys[-1].removeprefix(f"s3://{S3_BUCKET}/")
+    return df, last_key
 
 
 def apply_ops(current_df, changes_df) -> pd.DataFrame:
@@ -92,15 +95,22 @@ def apply_ops(current_df, changes_df) -> pd.DataFrame:
       U → overwrite by id
       D → drop by id
     """
-    pass
+    df = changes_df.drop_duplicates(subset="id", keep="last")
+    to_upsert = df[df["op"].isin(["I", "U"])]
+    changed_ids = df["id"]
+
+    current_df = current_df[~current_df["id"].isin(changed_ids)]
+    current_df = pd.concat([current_df, to_upsert]).drop(columns="op")
+
+    return current_df
 
 
 def read_current_state(s3) -> pd.DataFrame:
     """Read current-state Parquet from S3."""
-    # obj = s3.get_object(Bucket=S3_BUCKET, Key=f"{CURRENT_STATE_PREFIX}/data.parquet")
-    # df = pd.DataFrame(obj)
-    path = f"s3://{S3_BUCKET}/{CURRENT_STATE_PREFIX}/data.parquet"
-    df = pd.read_parquet(path)
+    obj = s3.get_object(Bucket=S3_BUCKET, Key=f"{CURRENT_STATE_PREFIX}/data.parquet")
+    df = pd.read_parquet(io.BytesIO(obj["Body"].read()))
+    # path = f"s3://{S3_BUCKET}/{CURRENT_STATE_PREFIX}/data.parquet"
+    # df = pd.read_parquet(path)
     return df
 
 
@@ -121,19 +131,20 @@ def main():
     s3 = boto3.client("s3")
 
     watermark = load_watermark(s3)
+    print(watermark)
     if watermark is None:
         df = load_seed_data()
         write_current_state(s3, df)
         save_watermark(s3, last_key=None)
     else:
         current_df = read_current_state(s3)
-        # print(current_df.head())
-    #     changes_df = read_cdc_files(..., since_key=watermark)
-    #     if changes_df is empty: return
-    #     new_df = apply_ops(current_df, changes_df)
-    #     write_current_state(new_df, ...)
-    #     save_watermark(..., last_cdc_key)
-    pass
+        changes_df, last_cdc_key = get_cdc_files(s3, since_key=watermark["last_key"])
+        print(changes_df)
+        if (changes_df is None) or (changes_df.empty):
+            return
+        new_df = apply_ops(current_df, changes_df)
+        write_current_state(s3, new_df)
+        save_watermark(s3, last_key=last_cdc_key)
 
 
 if __name__ == "__main__":

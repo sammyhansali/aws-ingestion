@@ -46,7 +46,6 @@ def read_load_files(cur, s3_glob: str) -> "pd.DataFrame":
     df = cur.execute(
         f"select * from read_csv('{s3_glob}', names={LOAD_COLS}, types={LOAD_COL_TYPES})"
     ).df()
-    df.insert(0, "op", "I")
     return df
 
 
