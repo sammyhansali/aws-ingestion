@@ -6,6 +6,7 @@ Used by inspect_dms_output.py and reconstruct.py.
 import os
 
 import duckdb
+import pandas as pd
 
 CDC_COL_TYPES = {
     "op": "varchar(1)",
@@ -41,7 +42,7 @@ def make_con() -> duckdb.DuckDBPyConnection:
     return con
 
 
-def read_load_files(cur, s3_glob: str) -> "pd.DataFrame":
+def read_load_files(cur, s3_glob: str) -> pd.DataFrame:
     """Read LOAD CSV files matching s3_glob. Adds op='I' column."""
     df = cur.execute(
         f"select * from read_csv('{s3_glob}', names={LOAD_COLS}, types={LOAD_COL_TYPES})"
@@ -49,7 +50,7 @@ def read_load_files(cur, s3_glob: str) -> "pd.DataFrame":
     return df
 
 
-def read_cdc_files(cur, s3_paths: "str | list[str]") -> "pd.DataFrame":
+def read_cdc_files(cur, s3_paths: "str | list[str]") -> pd.DataFrame:
     """
     Read CDC CSV files. s3_paths is either a glob string or a list of S3 URIs.
     Returns rows sorted by filename order (WAL order is preserved within each file).
