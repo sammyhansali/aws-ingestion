@@ -29,11 +29,6 @@ N_INSERTS = 20
 N_UPDATES = 50
 N_DELETES = 5
 
-STATUS_TRANSITIONS = {
-    "pending": "processing",
-    "processing": random.choice(["completed", "cancelled"]),
-}
-
 
 def insert_transactions(cur) -> list[dict]:
     """Insert N_INSERTS new transactions. Returns list of {id, committed_at}."""
@@ -55,8 +50,8 @@ def insert_transactions(cur) -> list[dict]:
     returning id, now()
     """
     rows = execute_values(cur, query, to_insert, fetch=True)
-    rows = [{"id": id, "committed_at": now} for id, now in rows]
-    return rows
+    metadata = [{"id": id, "committed_at": now} for id, now in rows]
+    return metadata
 
 
 def update_transactions(cur) -> list[dict]:
@@ -64,7 +59,49 @@ def update_transactions(cur) -> list[dict]:
     Pick N_UPDATES random existing rows and advance their status.
     Returns list of {id, old_status, new_status, committed_at}.
     """
-    pass
+    STATUS_TRANSITIONS = {
+        "pending": "processing",
+        "processing": random.choice(["completed", "cancelled"]),
+        "completed": "pending",
+        "cancelled": "pending",
+    }
+    cur.execute(
+        f"""
+        select id, status
+        from transactions
+        order by random()
+        limit {N_UPDATES}
+        ;
+        """
+    )
+    rows = cur.fetchall()
+    to_update = [(STATUS_TRANSITIONS[status], id) for id, status in rows]
+
+    query = """
+        update transactions
+        set 
+            status = data.new_status
+        from (values %s) as data(new_status, id)
+        where transactions.id = data.id::int
+        returning transactions.id, now()
+    """
+    updated = execute_values(
+        cur,
+        query,
+        to_update,
+        fetch=True,
+    )
+    old_status_map = {id: status for id, status in rows}
+    metadata = [
+        {
+            "id": id,
+            "old_status": old_status_map[id],
+            "new_status": STATUS_TRANSITIONS[old_status_map[id]],
+            "committed_at": now,
+        }
+        for id, now in updated
+    ]
+    return metadata
 
 
 def delete_transactions(cur) -> list[dict]:
@@ -72,21 +109,41 @@ def delete_transactions(cur) -> list[dict]:
     Pick N_DELETES random completed/cancelled rows and hard delete them.
     Returns list of {id, committed_at}.
     """
-    pass
+    cur.execute(
+        f"""
+        delete from transactions
+        where id in (
+            select id
+            from transactions
+            order by random()
+            limit {N_DELETES}
+        )
+        returning id, now()
+        ;
+        """
+    )
+    deleted = cur.fetchall()
+    metadata = [{"id": id, "committed_at": ca} for id, ca in deleted]
+    return metadata
 
 
 def log_committed(records: list[dict], operation: str) -> None:
     """Print committed_at log entries for lag analysis."""
-    pass
+    for r in records:
+        print(
+            json.dumps(
+                {"op": operation, **r, "committed_at": r["committed_at"].isoformat()}
+            )
+        )
 
 
 def iud(con, cur, fn) -> list[dict]:
     try:
         output = fn(cur)
-        print(output)
         con.commit()
-    except Exception:
+    except Exception as e:
         con.rollback()
+        raise e
 
     return output
 
@@ -96,13 +153,12 @@ def main():
     cur = con.cursor()
 
     inserts = iud(con, cur, insert_transactions)
-    # updates = update_transactions(cur)
-    # deletes = delete_transactions(cur)
-    # con.commit()
+    updates = iud(con, cur, update_transactions)
+    deletes = iud(con, cur, delete_transactions)
 
-    # log_committed(inserts, "I")
-    # log_committed(updates, "U")
-    # log_committed(deletes, "D")
+    log_committed(inserts, "I")
+    log_committed(updates, "U")
+    log_committed(deletes, "D")
 
     cur.close()
     con.close()
