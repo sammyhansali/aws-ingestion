@@ -15,6 +15,7 @@ Env vars required:
 
 import argparse
 import os
+import random
 import threading
 from datetime import datetime, timezone
 
@@ -34,6 +35,7 @@ DB_CONFIG = {
 N_BURST = 50
 N_LARGE_TXN = 5000
 N_CONCURRENT_THREADS = 10
+N_ROLLBACK = 20
 
 
 def make_con():
@@ -45,6 +47,22 @@ def log(scenario: str, msg: str) -> None:
     print(f"[{ts}] [{scenario}] {msg}")
 
 
+def get_random_row_for_update(cur) -> tuple[int]:
+    cur.execute(
+        """
+        select id, user_id
+        from transactions
+        order by random()
+        limit 1
+        ;
+        """
+    )
+    id, user_id = cur.fetchone()
+    print(f"id: {id}, user_id: {user_id}")
+
+    return id, user_id
+
+
 def scenario_burst(con) -> None:
     """
     N_BURST rapid UPDATEs to the same row within one second.
@@ -53,9 +71,42 @@ def scenario_burst(con) -> None:
     """
     # 1. pick or insert a target row, note its id
     # 2. in a tight loop, UPDATE the row N_BURST times (e.g. increment user_id each time)
-    # 3. commit after all updates
-    # 4. log triggered_at and id
-    pass
+    # 3. commit after each individual update
+    # 4. log final user id and id
+
+    cur = con.cursor()
+    id, user_id = get_random_row_for_update(cur)
+    try:
+        for i in range(N_BURST):
+            cur.execute(
+                f"""
+                update transactions
+                set user_id = {user_id + i + 1}
+                where id = {id}
+                ;
+                """
+            )
+            con.commit()
+        log("burst", f"id: {id}, final_user_id: {user_id + N_BURST}")
+    except Exception as e:
+        print(f"Failed burst update. Exception: {e}")
+        con.rollback()
+
+
+def _update_worker(row_id: int, thread_idx: int) -> None:
+    con = make_con()
+    cur = con.cursor()
+    cur.execute(
+        """
+        update transactions
+        set user_id = %s
+        where id = %s
+        ;
+        """,
+        [thread_idx, row_id],
+    )
+    con.commit()
+    con.close()
 
 
 def scenario_concurrent(con) -> None:
@@ -67,8 +118,21 @@ def scenario_concurrent(con) -> None:
     # 2. spawn N_CONCURRENT_THREADS threads, each opening its own connection
     # 3. each thread UPDATEs the same row with a different user_id and commits
     # 4. join all threads
-    # 5. log triggered_at and id
-    pass
+    # 5. log  id
+
+    cur = con.cursor()
+    id, _ = get_random_row_for_update(cur)
+
+    threads = [
+        threading.Thread(target=_update_worker, args=(id, i))
+        for i in range(N_CONCURRENT_THREADS)
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    log("concurrent", f"id={id}")
 
 
 def scenario_ghost(con) -> None:
@@ -80,7 +144,21 @@ def scenario_ghost(con) -> None:
     # 1. INSERT a new row, commit — note the id
     # 2. immediately DELETE that id, commit
     # 3. log triggered_at and id
-    pass
+    cur = con.cursor()
+    cur.execute(
+        """
+        insert into transactions (user_id, amount)
+        values (%s, %s)
+        returning id
+        ;
+        """,
+        [random.randint(1, 2000), random.uniform(4.99, 9999.00)],
+    )
+    (id,) = cur.fetchone()
+    con.commit()
+    cur.execute("delete from transactions where id = %s", (id,))
+    con.commit()
+    log("ghost", f"id={id}")
 
 
 def scenario_large_txn(con) -> None:
@@ -92,7 +170,26 @@ def scenario_large_txn(con) -> None:
     # 2. UPDATE N_LARGE_TXN random rows (order by random() limit N)
     # 3. commit in one shot
     # 4. log triggered_at and row count
-    pass
+    cur = con.cursor()
+    cur.execute(
+        f"""
+        update transactions
+        set user_id = 6742069
+        where id in (
+            select id 
+            from transactions
+            order by random()
+            limit {N_LARGE_TXN}
+        )
+        returning id
+        ;
+        """
+    )
+    updated_ids = cur.fetchall()
+    print(f"selected {len(updated_ids)} rows")
+    con.commit()
+
+    log("large-txn", f"rows={len(updated_ids)}")
 
 
 def scenario_rollback(con) -> None:
@@ -104,7 +201,24 @@ def scenario_rollback(con) -> None:
     # 2. UPDATE several rows
     # 3. roll back
     # 4. log triggered_at — after the run, verify no events appear in change-log
-    pass
+    cur = con.cursor()
+    cur.execute(
+        f"""
+        update transactions
+        set user_id = 6666666
+        where id in (
+            select id 
+            from transactions
+            order by random()
+            limit {N_ROLLBACK}
+        )
+        returning id
+        ;
+        """
+    )
+    con.rollback()
+
+    log("rollback", f"rows={N_ROLLBACK}")
 
 
 SCENARIOS = {
