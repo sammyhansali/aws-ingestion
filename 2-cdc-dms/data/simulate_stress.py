@@ -14,11 +14,13 @@ Env vars required:
 """
 
 import argparse
+import json
 import os
 import random
 import threading
 from datetime import datetime, timezone
 
+import boto3
 import psycopg2
 from dotenv import load_dotenv
 
@@ -31,6 +33,9 @@ DB_CONFIG = {
     "user": os.environ.get("RDS_USER"),
     "password": os.environ.get("RDS_PASSWORD"),
 }
+
+S3_BUCKET = "sh26-aws-ingestion"
+S3_STRESS_LOGS_PREFIX = "2-cdc-dms/stress-logs"
 
 N_BURST = 50
 N_LARGE_TXN = 5000
@@ -63,7 +68,7 @@ def get_random_row_for_update(cur) -> tuple[int]:
     return id, user_id
 
 
-def scenario_burst(con) -> None:
+def scenario_burst(con) -> dict:
     """
     N_BURST rapid UPDATEs to the same row within one second.
     Expect DMS to capture all N_BURST events (at-least-once).
@@ -92,6 +97,8 @@ def scenario_burst(con) -> None:
         print(f"Failed burst update. Exception: {e}")
         con.rollback()
 
+    return {"id": id, "final_user_id": user_id + N_BURST}
+
 
 def _update_worker(row_id: int, thread_idx: int) -> None:
     con = make_con()
@@ -109,7 +116,7 @@ def _update_worker(row_id: int, thread_idx: int) -> None:
     con.close()
 
 
-def scenario_concurrent(con) -> None:
+def scenario_concurrent(con) -> dict:
     """
     N_CONCURRENT_THREADS connections each update the same row simultaneously.
     Expect DMS to capture all updates; reconstruction should reflect the last committed state.
@@ -133,9 +140,10 @@ def scenario_concurrent(con) -> None:
         t.join()
 
     log("concurrent", f"id={id}")
+    return {"id": id}
 
 
-def scenario_ghost(con) -> None:
+def scenario_ghost(con) -> dict:
     """
     INSERT a row then immediately DELETE it in separate transactions before DMS flushes.
     Expect: DMS may capture both I+D, or coalesce to nothing.
@@ -159,9 +167,10 @@ def scenario_ghost(con) -> None:
     cur.execute("delete from transactions where id = %s", (id,))
     con.commit()
     log("ghost", f"id={id}")
+    return {"id": id}
 
 
-def scenario_large_txn(con) -> None:
+def scenario_large_txn(con) -> dict:
     """
     Single transaction touching N_LARGE_TXN rows.
     Expect DMS to capture all rows in one batch; tests memory/buffer behavior.
@@ -176,7 +185,7 @@ def scenario_large_txn(con) -> None:
         update transactions
         set user_id = 6742069
         where id in (
-            select id 
+            select id
             from transactions
             order by random()
             limit {N_LARGE_TXN}
@@ -186,13 +195,13 @@ def scenario_large_txn(con) -> None:
         """
     )
     updated_ids = cur.fetchall()
-    print(f"selected {len(updated_ids)} rows")
     con.commit()
 
     log("large-txn", f"rows={len(updated_ids)}")
+    return {"rows": len(updated_ids)}
 
 
-def scenario_rollback(con) -> None:
+def scenario_rollback(con) -> dict:
     """
     Begin a transaction, UPDATE several rows, then roll back.
     DMS must NOT surface any of these changes.
@@ -207,7 +216,7 @@ def scenario_rollback(con) -> None:
         update transactions
         set user_id = 6666666
         where id in (
-            select id 
+            select id
             from transactions
             order by random()
             limit {N_ROLLBACK}
@@ -216,9 +225,11 @@ def scenario_rollback(con) -> None:
         ;
         """
     )
+    rolled_back_ids = cur.fetchall()
     con.rollback()
 
-    log("rollback", f"rows={N_ROLLBACK}")
+    log("rollback", f"rows={len(rolled_back_ids)}")
+    return {"rows": len(rolled_back_ids)}
 
 
 SCENARIOS = {
@@ -235,11 +246,22 @@ def main():
     parser.add_argument("--scenario", choices=SCENARIOS.keys(), required=True)
     args = parser.parse_args()
 
+    triggered_at = datetime.now(timezone.utc).isoformat()
     con = make_con()
     log(args.scenario, "triggered")
-    SCENARIOS[args.scenario](con)
+    result = SCENARIOS[args.scenario](con)
     log(args.scenario, "complete")
     con.close()
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S%f")[:-3]
+    payload = {"scenario": args.scenario, "triggered_at": triggered_at, **result}
+    s3 = boto3.client("s3")
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=f"{S3_STRESS_LOGS_PREFIX}/{args.scenario}-{ts}.json",
+        Body=json.dumps(payload),
+    )
+    print(f"logged to s3: {S3_STRESS_LOGS_PREFIX}/{args.scenario}-{ts}.json")
 
 
 if __name__ == "__main__":

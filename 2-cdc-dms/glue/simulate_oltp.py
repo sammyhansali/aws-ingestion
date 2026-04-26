@@ -10,7 +10,9 @@ Glue job parameters:
 import json
 import os
 import random
+from datetime import datetime, timezone
 
+import boto3
 import psycopg2
 from dotenv import load_dotenv
 from psycopg2.extras import execute_values
@@ -24,6 +26,9 @@ DB_CONFIG = {
     "user": os.environ.get("RDS_USER"),
     "password": os.environ.get("RDS_PASSWORD"),
 }
+
+S3_BUCKET = "sh26-aws-ingestion"
+S3_OLTP_LOGS_PREFIX = "2-cdc-dms/oltp-logs"
 
 N_INSERTS = 20
 N_UPDATES = 50
@@ -79,7 +84,7 @@ def update_transactions(cur) -> list[dict]:
 
     query = """
         update transactions
-        set 
+        set
             status = data.new_status
         from (values %s) as data(new_status, id)
         where transactions.id = data.id::int
@@ -137,6 +142,19 @@ def log_committed(records: list[dict], operation: str) -> None:
         )
 
 
+def write_logs_to_s3(s3, inserts: list[dict], updates: list[dict], deletes: list[dict]) -> None:
+    """Write all committed records for this run as a JSONL file to S3."""
+    lines = []
+    for op, records in [("I", inserts), ("U", updates), ("D", deletes)]:
+        for r in records:
+            lines.append(json.dumps({"op": op, **r, "committed_at": r["committed_at"].isoformat()}))
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S%f")[:-3]
+    key = f"{S3_OLTP_LOGS_PREFIX}/{ts}.jsonl"
+    s3.put_object(Bucket=S3_BUCKET, Key=key, Body="\n".join(lines))
+    print(f"logged to s3: {key}")
+
+
 def iud(con, cur, fn) -> list[dict]:
     try:
         output = fn(cur)
@@ -159,6 +177,9 @@ def main():
     log_committed(inserts, "I")
     log_committed(updates, "U")
     log_committed(deletes, "D")
+
+    s3 = boto3.client("s3")
+    write_logs_to_s3(s3, inserts, updates, deletes)
 
     cur.close()
     con.close()
